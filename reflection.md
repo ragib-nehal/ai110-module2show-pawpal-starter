@@ -5,12 +5,16 @@
 **a. Initial design**
 
 - Briefly describe your initial UML design.
+- For the initial UML design, I decided to create 5 classes. These included Pet, Owner, Task, Scheduler, and Schedule. Pet, Owner, and Task were necessary  by design but I decided to add a Scheduler class to seperate the responsibilities between it and Schedule,which only includes the data.        
 - What classes did you include, and what responsibilities did you assign to each?
+The 5 classes I went with are Pet, Owner, Task, Schedule, and Scheduler. Pet stores the primary data for the animal such as the name of the animal, type of species, and special needs. The Owner class holds the human's profile and availibility. Task contains the specific care activities, its duration, and frequency. Schedule primarily contains the data for the the 7-day period and Schedular is the algorithmic layer that creates it.  
 
 **b. Design changes**
 
 - Did your design change during implementation?
+- Yes, I made a couple of changes to the original UML design to improve the relationships between the classes.
 - If yes, describe at least one change and why you made it.
+- The original design did not establish a was for Owners to reference their Pets since they lived inside Schedular and Schedule. I also removed the redundant list of Tasks that was contained inside of Schedule and used a weekly_plan to avoid redundance. 
 
 ---
 
