@@ -208,11 +208,13 @@ class Scheduler:
         for day in DAYS:
             due_today = [t for t in self._all_tasks if t.is_due_today(day)]
             fitted = self.fit_tasks_in_day(day, due_today)
-            time_cursor = "08:00"
+            time_cursor = 8 * 60  # 08:00 in minutes
             for task in fitted:
-                schedule.add_scheduled_task(day, task, time_cursor)
-                explanation = self.explain_scheduling_decision(task, day, time_cursor)
+                time_str = f"{time_cursor // 60:02d}:{time_cursor % 60:02d}"
+                schedule.add_scheduled_task(day, task, time_str)
+                explanation = self.explain_scheduling_decision(task, day, time_str)
                 schedule.set_explanation(schedule.get_explanation() + explanation + "\n")
+                time_cursor += task.duration_minutes
         schedule._generated_at = datetime.now()
         return schedule
 

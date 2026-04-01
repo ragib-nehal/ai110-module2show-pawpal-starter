@@ -32,6 +32,35 @@ Three features were added to `pawpal_system.py` to make the scheduler more intel
 
 **Time-slot conflict detection**: `OwnerScheduler.detect_time_slot_conflicts()` scans every day's plan across all pets and reports any time slot where two or more tasks overlap. It returns plain warning strings rather than raising exceptions, so the app stays running and the owner can decide how to resolve the clash. `get_time_slot_conflict_report()` formats those warnings into a single printable string.
 
+## Testing PawPal+
+
+### Running the tests
+
+```bash
+python -m pytest test/
+```
+
+To run a single test by name:
+
+```bash
+python -m pytest test/test_pawpal.py::test_mark_complete_changes_status
+```
+
+### What the tests cover
+
+| Area | Tests |
+|---|---|
+| **Sorting correctness** | Tasks with `preferred_time` are sorted chronologically; timed tasks always schedule before untimed ones; untimed tasks sort high → medium → low priority |
+| **Recurrence logic** | Daily tasks produce a next task due +1 day; weekly tasks produce one due +7 days; one-time tasks return `None`; recurred tasks preserve title, duration, and priority |
+| **Conflict detection** | Daily time-budget conflicts are reported when combined pet tasks exceed `available_time_per_day`; time-slot conflicts are flagged when two tasks share the same start time; no false positives for a single pet with one task |
+| **Task basics** | Tasks start incomplete; `mark_complete` sets the flag; pets track task counts correctly |
+
+### Confidence Level
+
+★★★★☆ (4/5)
+
+The core scheduling behaviors — priority sorting, recurrence, and conflict detection — are all verified and passing. Confidence is held back from 5 stars because the time-slot conflict check assumes a fixed 08:00 start with no overlap handling across a real wall-clock range, and the UI layer (`app.py`) has no automated test coverage.
+
 ## Getting started
 
 ### Setup

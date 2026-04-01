@@ -39,13 +39,16 @@ The 5 classes I went with are Pet, Owner, Task, Schedule, and Scheduler. Pet sto
 **a. How you used AI**
 
 - How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
+- I used a combination of Claude-code and Copilot for this  project. Claude code was responsible for most of the coding aspect and I used Copilot to brain storm and plan. I've noticed having multple agents open at once helps take the load off of one tool and keeps the context window sharp. It was also really helpful to plan things out using the plan modee to not only critique that the AI was going to implement but also help the AI focus on smaller tasks rather than implement the entire login in one go.
 - What kinds of prompts or questions were most helpful?
+- One prompt I found helpful was asking Calude to explain what it will do before it implements the code. This helps me treat the AI almost like a fellow engineer that proposes a solution. Another prompt I've found really helpful is asking the llm to make code more readable and add docstrings for documentation.
 
 **b. Judgment and verification**
 
 - Describe one moment where you did not accept an AI suggestion as-is.
+- One time I rejected a suggestion from Claude is when it suggested that I sort tasks by time, which overlooks the priority of those tasks. Even though a task may take longer, its priority might be greater than a shorter task, but the AI overlooked this possibility.
 - How did you evaluate or verify what the AI suggested?
-
+- I think the easiest way to evaluate what the AI suggested was to go back to the original UML design and the backend logic of the app. Every new feature builds on a preexising blueprint, so if a feature violates the relationship between an owner and a pet, it would clearly be rejected.
 ---
 
 ## 4. Testing and Verification
