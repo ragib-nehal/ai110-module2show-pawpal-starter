@@ -1,7 +1,10 @@
 from __future__ import annotations
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Optional
+
+DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 @dataclass
@@ -94,10 +97,35 @@ class Task:
     preferred_time: str | list = ""
     pet_requirements: list = field(default_factory=list)
     completed: bool = False
+    due_date: date | None = None
 
-    def mark_complete(self) -> None:
-        """Mark the task as completed."""
+    def mark_complete(self) -> 'Task | None':
+        """Mark the task as completed and return a new Task for the next occurrence.
+
+        Returns a new Task (with completed=False) for recurring frequencies:
+          - "daily"         → due_date advances by 1 day
+          - "weekly:<Day>"  → due_date advances by 7 days
+          - "once"          → returns None (no recurrence)
+        """
         self.completed = True
+        base = self.due_date if self.due_date is not None else date.today()
+        if self.frequency == "daily":
+            next_due = base + timedelta(days=1)
+        elif self.frequency.startswith("weekly:"):
+            next_due = base + timedelta(weeks=1)
+        else:
+            return None
+        return Task(
+            title=self.title,
+            duration_minutes=self.duration_minutes,
+            priority=self.priority,
+            frequency=self.frequency,
+            description=self.description,
+            preferred_time=self.preferred_time,
+            pet_requirements=list(self.pet_requirements),
+            completed=False,
+            due_date=next_due,
+        )
 
     def get_priority_score(self) -> int:
         """Return a numeric priority score: high=3, medium=2, low=1."""
@@ -109,7 +137,12 @@ class Task:
         return self.duration_minutes <= available_minutes
 
     def is_due_today(self, day: str) -> bool:
-        """Return True if the task should be scheduled on the given day."""
+        """Return True if the task should be scheduled on the given day.
+
+        If due_date is set, the task is only eligible on or after that date.
+        """
+        if self.due_date is not None and date.today() < self.due_date:
+            return False
         if self.frequency == "daily":
             return True
         if self.frequency == "once":
@@ -172,8 +205,7 @@ class Scheduler:
     def generate_schedule(self) -> Schedule:
         """Build and return a weekly Schedule for the pet by fitting tasks into each day."""
         schedule = Schedule(self._pet, self._owner)
-        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        for day in days:
+        for day in DAYS:
             due_today = [t for t in self._all_tasks if t.is_due_today(day)]
             fitted = self.fit_tasks_in_day(day, due_today)
             time_cursor = "08:00"
@@ -192,15 +224,33 @@ class Scheduler:
         return score
 
     def fit_tasks_in_day(self, day: str, available_tasks: list[Task]) -> list[Task]:
-        """Return a greedy list of tasks that fit within the owner's daily time limit."""
-        sorted_tasks = sorted(available_tasks, key=lambda t: self.calculate_task_priority(t), reverse=True)
+        """Return a greedy list of tasks that fit within the owner's daily time limit.
+
+        Tasks with a preferred_time are anchored first (sorted by time), then remaining
+        tasks fill in by priority. Completed tasks are excluded.
+        """
+        pending = [t for t in available_tasks if not t.completed]
+        timed = self.sort_by_time([t for t in pending if t.preferred_time])
+        untimed = sorted(
+            [t for t in pending if not t.preferred_time],
+            key=lambda t: self.calculate_task_priority(t),
+            reverse=True,
+        )
+        ordered = timed + untimed
         fitted = []
         remaining = self._owner.get_available_time()
-        for task in sorted_tasks:
+        for task in ordered:
             if task.can_fit(remaining):
                 fitted.append(task)
                 remaining -= task.duration_minutes
         return fitted
+
+    def sort_by_time(self, tasks: list[Task]) -> list[Task]:
+        """Return tasks sorted by preferred_time (HH:MM). Tasks without a time sort last."""
+        return sorted(
+            tasks,
+            key=lambda t: t.preferred_time if t.preferred_time else "99:99"
+        )
 
     def explain_scheduling_decision(self, task: Task, day: str, time: str) -> str:
         """Return a human-readable string explaining why a task was placed on a given day and time."""
@@ -228,9 +278,8 @@ class OwnerScheduler:
     def detect_time_conflicts(self) -> list[dict]:
         """Return a list of days where total scheduled time across all pets exceeds the owner's limit."""
         conflicts = []
-        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         available = self._owner.get_available_time()
-        for day in days:
+        for day in DAYS:
             total = sum(
                 schedule.total_time_for_day(day)
                 for schedule in self._schedules.values()
@@ -242,8 +291,7 @@ class OwnerScheduler:
     def resolve_conflict(self, conflict: dict) -> None:
         """Bump the lowest-priority task from the conflicted day to the next day."""
         day = conflict["day"]
-        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        next_day = days[(days.index(day) + 1) % len(days)]
+        next_day = DAYS[(DAYS.index(day) + 1) % len(DAYS)]
         for schedule in self._schedules.values():
             plan = schedule.get_day_plan(day)
             if not plan:
@@ -268,7 +316,6 @@ class OwnerScheduler:
 
     def suggest_consolidated_tasks(self) -> list[str]:
         """Return task titles that appear in more than one pet's schedule."""
-        from collections import Counter
         all_titles = [
             entry["task"].title
             for schedule in self._schedules.values()
@@ -277,6 +324,24 @@ class OwnerScheduler:
         ]
         counts = Counter(all_titles)
         return [title for title, count in counts.items() if count > 1]
+
+    def filter_tasks(self, day: str, pet_name: str = None, completed: bool = None) -> dict[str, list]:
+        """Return scheduled task entries filtered by pet name and/or completion status.
+
+        Args:
+            day: Day name to query (e.g. "Monday").
+            pet_name: If provided, only return entries for this pet.
+            completed: If True, return only completed tasks; if False, only incomplete; if None, return all.
+        """
+        summary = self.get_daily_summary(day)
+        if pet_name is not None:
+            summary = {k: v for k, v in summary.items() if k == pet_name}
+        if completed is not None:
+            summary = {
+                k: [e for e in entries if e["task"].completed == completed]
+                for k, entries in summary.items()
+            }
+        return summary
 
     def get_conflict_report(self) -> str:
         """Return a formatted string summarizing all scheduling conflicts."""
@@ -290,3 +355,32 @@ class OwnerScheduler:
                 f"(over by {c['total_minutes'] - c['limit']} min)"
             )
         return "\n".join(lines)
+
+    def detect_time_slot_conflicts(self) -> list[str]:
+        """Return warning strings for every time slot where 2+ tasks are scheduled simultaneously.
+
+        Checks across all pets so both same-pet and cross-pet overlaps are caught.
+        """
+        warnings = []
+        for day in DAYS:
+            slot_map = defaultdict(list)
+            for pet_name, slot, title in (
+                (pet_name, entry["time"], entry["task"].title)
+                for pet_name, schedule in self._schedules.items()
+                for entry in schedule.get_day_plan(day)
+            ):
+                slot_map[slot].append((pet_name, title))
+            for slot, entries in slot_map.items():
+                if len(entries) > 1:
+                    details = ", ".join(f'"{title}" ({pet})' for pet, title in entries)
+                    warnings.append(
+                        f"WARNING [{day} {slot}]: {len(entries)} tasks overlap — {details}"
+                    )
+        return warnings
+
+    def get_time_slot_conflict_report(self) -> str:
+        """Return a formatted warning report for simultaneous task conflicts."""
+        warnings = self.detect_time_slot_conflicts()
+        if not warnings:
+            return "No time-slot conflicts detected."
+        return "\n".join(warnings)

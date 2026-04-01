@@ -22,6 +22,16 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Smarter Scheduling
+
+Three features were added to `pawpal_system.py` to make the scheduler more intelligent:
+
+**Automatic task recurrence**: when `task.mark_complete()` is called on a `daily` or `weekly` task, it now returns a new `Task` instance due on the next occurrence (today + 1 day for daily, today + 7 days for weekly). One-time tasks return `None`. Callers add the returned task back to the pet to keep the schedule rolling forward.
+
+**Due-date awareness**: `Task` has a new optional `due_date` field. `is_due_today()` respects it: a task with a future `due_date` is silently skipped by the scheduler until that date arrives. This prevents a just-completed recurring task from being re-scheduled the same day its successor is created.
+
+**Time-slot conflict detection**: `OwnerScheduler.detect_time_slot_conflicts()` scans every day's plan across all pets and reports any time slot where two or more tasks overlap. It returns plain warning strings rather than raising exceptions, so the app stays running and the owner can decide how to resolve the clash. `get_time_slot_conflict_report()` formats those warnings into a single printable string.
+
 ## Getting started
 
 ### Setup

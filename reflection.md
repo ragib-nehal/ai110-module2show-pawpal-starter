@@ -14,8 +14,7 @@ The 5 classes I went with are Pet, Owner, Task, Schedule, and Scheduler. Pet sto
 - Did your design change during implementation?
 - Yes, I made a couple of changes to the original UML design to improve the relationships between the classes.
 - If yes, describe at least one change and why you made it.
-- The original design did not establish a was for Owners to reference their Pets since they lived inside Schedular and Schedule. I also removed the redundant list of Tasks that was contained inside of Schedule and used a weekly_plan to avoid redundance. 
-
+- The original design did not establish a was for Owners to reference their Pets since they lived inside Schedular and Schedule. I also removed the redundant list of Tasks that was contained inside of Schedule and used a weekly_plan to avoid redundance. Another change that I made was the addition of the OwnerScheduler class which handles an common case where an owner might have multple pets. This addresses the issue of conflicts that may result with tasks when an owner has multiple pets. 
 ---
 
 ## 2. Scheduling Logic and Tradeoffs
@@ -23,13 +22,16 @@ The 5 classes I went with are Pet, Owner, Task, Schedule, and Scheduler. Pet sto
 **a. Constraints and priorities**
 
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
+- Some of the constraints that my scheduler considers are time, preferred time, completion status, and frequency. Time is the daily time budget for the owner across all of the pets. Preferred time is used to sort tasks chronologically. Completion status allows us to exclude tasks from scheduling. Frequency helps manage how often a task occurs for pets.
 - How did you decide which constraints mattered most?
+- The constraints I mentioned are additional ones that may not have been mentioned in the question. But time, priority, and frequency were essetial. In a real world scenario, an owners cannot provide more time than they have and sometimes, more important tasks need to be prioritized. Frequency gives the owner a consistant schedule, automating the recurring tasks that are scheduled.  
 
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
+- One tradeoff I made was the use of the gredy packing algorithm which picks tasks in priority order and stops when the day is full. It does not backtract to lower priority tasks that may be able to fill in more slots during the day.
 - Why is that tradeoff reasonable for this scenario?
-
+- This tradeoff is reasonable since the priority of tasks outweight the need to get more done. For instance, if a dog's meds taks about 30 min with high priority, it cannot be overridden by a bath that was added before, has lower priority, and takes less time. Some tasks are non-negotiable.
 ---
 
 ## 3. AI Collaboration
