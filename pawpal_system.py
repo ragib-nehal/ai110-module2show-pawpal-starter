@@ -268,13 +268,62 @@ class OwnerScheduler:
         self._pets = pets
         self._tasks_per_pet = tasks_per_pet  # {pet.name: [Task, ...]}
         self._schedules: dict[str, Schedule] = {}
+        self._dropped_tasks: dict[str, list[dict]] = {}  # {day: [{pet, task}, ...]}
 
     def generate_consolidated_schedule(self) -> dict[str, Schedule]:
-        """Generate and store a Schedule for each pet, returning all schedules by pet name."""
+        """Generate and store a Schedule for each pet using a shared time cursor per day.
+
+        All pets' tasks compete for the same daily time budget and are assigned
+        sequential start times from a single 08:00 clock, so no two tasks ever
+        share a time slot.
+        """
+        # Create a Scheduler and empty Schedule for every pet up front.
+        schedulers: dict[str, Scheduler] = {}
         for pet in self._pets:
-            tasks = self._tasks_per_pet.get(pet.name, [])
-            scheduler = Scheduler(pet, self._owner, tasks)
-            self._schedules[pet.name] = scheduler.generate_schedule()
+            schedulers[pet.name] = Scheduler(pet, self._owner, self._tasks_per_pet.get(pet.name, []))
+            self._schedules[pet.name] = Schedule(pet, self._owner)
+
+        for day in DAYS:
+            # Collect every (pet, task) pair that is due today across all pets.
+            all_due: list[tuple[Pet, Task]] = []
+            for pet in self._pets:
+                for task in self._tasks_per_pet.get(pet.name, []):
+                    if task.is_due_today(day) and not task.completed:
+                        all_due.append((pet, task))
+
+            # Timed tasks anchor first (sorted by preferred_time), then remaining
+            # tasks fill in by priority score (special-needs boost included).
+            timed = sorted(
+                [(p, t) for p, t in all_due if t.preferred_time],
+                key=lambda x: x[1].preferred_time,
+            )
+            untimed = sorted(
+                [(p, t) for p, t in all_due if not t.preferred_time],
+                key=lambda x: schedulers[x[0].name].calculate_task_priority(x[1]),
+                reverse=True,
+            )
+            ordered = timed + untimed
+
+            # Greedy fit against a single shared daily limit with one time cursor.
+            remaining = self._owner.get_available_time()
+            time_cursor = 8 * 60  # 08:00
+            self._dropped_tasks[day] = []
+
+            for pet, task in ordered:
+                if task.can_fit(remaining):
+                    time_str = f"{time_cursor // 60:02d}:{time_cursor % 60:02d}"
+                    self._schedules[pet.name].add_scheduled_task(day, task, time_str)
+                    explanation = schedulers[pet.name].explain_scheduling_decision(task, day, time_str)
+                    prev = self._schedules[pet.name].get_explanation()
+                    self._schedules[pet.name].set_explanation(prev + explanation + "\n")
+                    remaining -= task.duration_minutes
+                    time_cursor += task.duration_minutes
+                else:
+                    self._dropped_tasks[day].append({"pet": pet.name, "task": task})
+
+        for schedule in self._schedules.values():
+            schedule._generated_at = datetime.now()
+
         return self._schedules
 
     def detect_time_conflicts(self) -> list[dict]:
@@ -357,6 +406,13 @@ class OwnerScheduler:
                 f"(over by {c['total_minutes'] - c['limit']} min)"
             )
         return "\n".join(lines)
+
+    def get_dropped_tasks(self) -> dict[str, list[dict]]:
+        """Return tasks that were skipped during scheduling because they didn't fit the daily budget.
+
+        Returns {day: [{"pet": pet_name, "task": Task}, ...]} for days that had drops.
+        """
+        return {day: entries for day, entries in self._dropped_tasks.items() if entries}
 
     def detect_time_slot_conflicts(self) -> list[str]:
         """Return warning strings for every time slot where 2+ tasks are scheduled simultaneously.

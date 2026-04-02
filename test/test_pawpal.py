@@ -175,40 +175,56 @@ def test_no_conflict_when_pets_fit_within_daily_limit():
 
 
 def test_conflict_detected_when_pets_exceed_daily_limit():
-    """Two pets whose combined tasks exceed the daily limit → conflict reported."""
+    """When combined tasks exceed the daily limit, the lower-priority task is dropped.
+
+    The shared time cursor prevents over-scheduling, so detect_time_conflicts()
+    returns nothing. The observable effect is that only the higher-priority task
+    (Walk, 40 min) fits within the 60-min budget; Feed (also 40 min) is dropped.
+    """
     owner = make_owner(minutes=60)
     pet1 = Pet(name="Buddy",    species="Dog", age=3, energy_level="high")
     pet2 = Pet(name="Whiskers", species="Cat", age=5, energy_level="low")
     owner.add_pet(pet1)
     owner.add_pet(pet2)
     tasks_per_pet = {
-        "Buddy":    [make_task(title="Walk", duration_minutes=40)],
-        "Whiskers": [make_task(title="Feed", duration_minutes=40)],
+        "Buddy":    [make_task(title="Walk", duration_minutes=40, priority="high")],
+        "Whiskers": [make_task(title="Feed", duration_minutes=40, priority="low")],
     }
     os_ = OwnerScheduler(owner, [pet1, pet2], tasks_per_pet)
     os_.generate_consolidated_schedule()
-    conflicts = os_.detect_time_conflicts()
-    assert len(conflicts) > 0
-    assert conflicts[0]["total_minutes"] > conflicts[0]["limit"]
+    # Shared cursor: Walk (40 min) fits; Feed (40 min) would exceed the 60-min limit → dropped.
+    assert os_.detect_time_conflicts() == []
+    monday_buddy = os_.get_daily_summary("Monday")["Buddy"]
+    monday_whiskers = os_.get_daily_summary("Monday")["Whiskers"]
+    assert len(monday_buddy) == 1        # Walk was scheduled
+    assert len(monday_whiskers) == 0     # Feed was dropped
 
 
 def test_time_slot_conflict_detected_for_same_start_time():
-    """Two tasks scheduled at the exact same time slot triggers a slot-level warning."""
+    """With the shared time cursor, two tasks with the same preferred_time get
+    sequential slots — the second is placed immediately after the first ends."""
     owner = make_owner(minutes=120)
     pet1 = Pet(name="Buddy",    species="Dog", age=3, energy_level="high")
     pet2 = Pet(name="Whiskers", species="Cat", age=5, energy_level="low")
     owner.add_pet(pet1)
     owner.add_pet(pet2)
-    # Both tasks have the same preferred_time so the Scheduler places them at 08:00
     tasks_per_pet = {
         "Buddy":    [make_task(title="Walk", preferred_time="08:00", duration_minutes=30)],
         "Whiskers": [make_task(title="Feed", preferred_time="08:00", duration_minutes=30)],
     }
     os_ = OwnerScheduler(owner, [pet1, pet2], tasks_per_pet)
     os_.generate_consolidated_schedule()
-    warnings = os_.detect_time_slot_conflicts()
-    assert len(warnings) > 0
-    assert "08:00" in warnings[0]
+    # No overlaps — tasks are sequential, so no slot-level warnings.
+    assert os_.detect_time_slot_conflicts() == []
+    # Walk gets 08:00; Feed gets 08:30 (right after Walk's 30 min).
+    monday = {
+        pet: entries
+        for pet, entries in os_.get_daily_summary("Monday").items()
+        if entries
+    }
+    times = {entries[0]["time"] for entries in monday.values()}
+    assert "08:00" in times
+    assert "08:30" in times
 
 
 def test_no_time_slot_conflict_single_pet():
