@@ -56,13 +56,16 @@ The 5 classes I went with are Pet, Owner, Task, Schedule, and Scheduler. Pet sto
 **a. What you tested**
 
 - What behaviors did you test?
+- One behavior that I tested is Task Completion, which ensured that a task started incomplete and and once we marked a test complete, that task will be completed. I also tested the pet task management system, which starts off as an empty list, and calling the adding method will add tasks to that list, making them retrievable. I also tested the conflict detection, which handeled edge cases like when the time limit is exceeded by tasks or when pet tasks overlap.
 - Why were these tests important?
+- Task completion is essential so that the schedules are not corrupted by old tasks. Pet tasks are essentially the backbone of the schedule, so each pet must have at least one task. Conflict detection allows the owner to know when the overall tasks require more time than their schedule can provide.
 
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
+- I'm confident that my scheduler correctly implemented most of the core features of the Pawpal app. I made sure to handle constraints, multiple pets, schedule conflicts, and sorting and filtering. I also included tip for the user. For instance, tasks that appear for multiple pets can be done together. 
 - What edge cases would you test next if you had more time?
-
+- If I had more time, I would definitely implement more tests to see where my logic breaks. For instance, is there a limit to how many pets an owner can have and what if all tasks for the pet(s) take up the maximum amount of time avaiable. For those edge cases, I would need to restructure the schedule so that tasks can be done in parallel so that high priority tasks can still be done. 
 ---
 
 ## 5. Reflection
@@ -70,11 +73,14 @@ The 5 classes I went with are Pet, Owner, Task, Schedule, and Scheduler. Pet sto
 **a. What went well**
 
 - What part of this project are you most satisfied with?
+- I think I really nailed down the schedule generation aspect of the app and the handeling tasks when an owner is overbooked. The sorting and filtering feature I added to the UI is also convenient for users that want to filter by pets or view their remaining tasks.
 
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
+- I would definitely redesign the UI to be more intuative. Right now, everything is top to bottom, so I might be able to add a side panel or a menu bar at the top to make it more user friendly. I would also like to add a feature where you can add multiple owners so you can allocate tasks to multiple people. 
 
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+- One thing I learned is that designing your architecture/UML is necessary before you even implement any code. Without that blueprint, the app has no vision and you would have to design everything on the fly without a structured plan.
